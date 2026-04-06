@@ -1,0 +1,21 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Audio files: only owner can read/write
+    match /audio/{userId}/{meetingId}/{fileName} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // TTS files: only owner can read
+    match /tts/{meetingId}/{fileName} {
+      // Only backend (service account) writes; authenticated users can read their own
+      allow read: if request.auth != null;
+    }
+
+    // Deny everything else
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

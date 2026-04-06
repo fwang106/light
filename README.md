@@ -1,37 +1,107 @@
-## Welcome to GitHub Pages
+# MeetingLight - AI Meeting Transcription App
 
-You can use the [editor on GitHub](https://github.com/fwang106/light/edit/master/README.md) to maintain and preview the content for your website in Markdown files.
+A mobile-first PWA for recording meetings, transcribing audio with speaker labeling, and performing AI-powered analysis.
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
+## Features
 
-### Markdown
+- **Record** meeting audio directly from mobile browser (iOS Safari + Android Chrome)
+- **Transcribe** with OpenAI Whisper (with speaker diarization)
+- **Summarize** with Claude or GPT-4o (model switchable)
+- **Action Items** extracted automatically
+- **Chat** with your transcript via RAG (ask questions, get cited answers)
+- **Audio Replay** synchronized with transcript highlights (click-to-seek)
+- **Voice Summary** - TTS narration of the summary
+- **Model Selection** - choose different AI models per operation in Settings
 
-Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
+## Architecture
 
-```markdown
-Syntax highlighted code block
-
-# Header 1
-## Header 2
-### Header 3
-
-- Bulleted
-- List
-
-1. Numbered
-2. List
-
-**Bold** and _Italic_ and `Code` text
-
-[Link](url) and ![Image](src)
+```
+Mobile PWA (Next.js 14)          GCP Cloud Run (FastAPI)
+Firebase Auth         ──────►   /api/meetings
+Firebase Storage                 /api/transcribe   → Whisper API
+Firebase Firestore               /api/summarize    → Claude / GPT-4o
+                                 /api/chat (SSE)   → RAG + LLM
+                                 /api/tts          → OpenAI TTS
 ```
 
-For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
+## Directory Structure
 
-### Jekyll Themes
+```
+light/
+├── frontend/        # Next.js 14 PWA
+├── backend/         # FastAPI backend (Python 3.12)
+└── infrastructure/  # Firebase rules, Cloud Run config, CI/CD
+```
 
-Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/fwang106/light/settings). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
+## Getting Started
 
-### Support or Contact
+### Prerequisites
+- Node.js 20+
+- Python 3.12+
+- Firebase project with Firestore + Storage enabled
+- GCP project with Cloud Run API enabled
+- OpenAI API key (for Whisper + TTS)
+- Anthropic API key (for Claude)
 
-Having trouble with Pages? Check out our [documentation](https://help.github.com/categories/github-pages-basics/) or [contact support](https://github.com/contact) and we’ll help you sort it out.
+### Backend (local dev)
+
+```bash
+cd backend
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env  # fill in values
+uvicorn app.main:app --reload --port 8080
+```
+
+### Frontend (local dev)
+
+```bash
+cd frontend
+npm install
+cp .env.local.example .env.local  # fill in Firebase config
+npm run dev
+```
+
+Open https://localhost:3000 (use `npm run dev:https` for microphone on iOS)
+
+## Deployment
+
+### GCP Setup
+
+```bash
+# One-time setup
+bash infrastructure/setup.sh YOUR_PROJECT_ID
+
+# Set API keys
+echo -n "sk-..." | gcloud secrets versions add openai-api-key --data-file=-
+echo -n "sk-ant-..." | gcloud secrets versions add anthropic-api-key --data-file=-
+```
+
+### Deploy
+
+```bash
+# Trigger CI/CD
+git push origin main
+
+# Or deploy manually
+gcloud builds submit --config=infrastructure/cloudbuild.yaml
+```
+
+## Mobile Recording Notes
+
+- **iOS Safari**: Uses `audio/mp4` (AAC). Keep screen on during recording.
+- **Android Chrome**: Uses `audio/webm;codecs=opus` with 10s chunked collection.
+- Wake Lock API is used to prevent screen sleep during recording.
+- Whisper supports files up to 25MB (~60-100 min of audio). Longer recordings are auto-split.
+
+## AI Model Selection
+
+Models can be changed per-operation in **Settings**:
+
+| Operation | Available Models |
+|-----------|-----------------|
+| Transcription | Whisper v1 |
+| Summarization | Claude 3.5 Sonnet, Claude Sonnet 4.6, GPT-4o, GPT-4o Mini |
+| Action Items | Claude 3.5 Sonnet, GPT-4o |
+| Chat | Claude 3.5 Sonnet, Claude Sonnet 4.6, Claude 3.5 Haiku, GPT-4o, GPT-4o Mini |
+| Voice (TTS) | OpenAI TTS-1, TTS-1-HD (6 voice options) |
